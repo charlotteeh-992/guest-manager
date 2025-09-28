@@ -365,87 +365,88 @@
 
       return { total, responses, meals };
     }
+function renderSummary(guests) {
+  updateProgressBar(guests); // update progress bar
 
-    function renderSummary(guests) {
-      updateProgressBar(guests); // update progress bar
+  const div = document.getElementById('summary-content');
+  div.innerHTML = '';
 
-      const div = document.getElementById('summary-content');
-      div.innerHTML = '';
+  // ===== DAY / EVENING SUMMARY =====
+  ['Day', 'Evening'].forEach(type => {
+    const { total, responses, meals } = summarizeGuests(guests, type);
 
-      // ===== AGE GROUP SUMMARY =====
-      const ageGroups = [
-        { label: 'Adult', key: 'Adult' },
-        { label: 'Teen (12-17)', key: 'Teen (12-17)' },
-        { label: 'Child (2-11)', key: 'Child (2-11)' },
-        { label: 'Baby (under 2)', key: 'Baby (under 2)' }
-      ];
-      const ageCounts = {};
-      ageGroups.forEach(g => ageCounts[g.key.toLowerCase()] = 0);
+    const section = document.createElement('div');
+    section.className = 'summary-section';
 
-      guests.forEach(g => {
-        const age = (g.Age || '').trim().toLowerCase();
-        if (age in ageCounts) {
-          ageCounts[age]++;
-        }
-      });
+    const h3 = document.createElement('h3');
+    h3.textContent = `${type} Guests`;
+    section.appendChild(h3);
 
-      const ageSection = document.createElement('div');
-      ageSection.className = 'summary-section';
+    const ul = document.createElement('ul');
+    const totalLi = document.createElement('li');
+    totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
+    ul.appendChild(totalLi);
 
-      const ageTitle = document.createElement('h3');
-      ageTitle.textContent = 'By Age Group';
-      ageSection.appendChild(ageTitle);
+    Object.entries(responses).forEach(([k, v]) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>${k}:</strong> ${v}`;
+      ul.appendChild(li);
+    });
 
-      const ageUl = document.createElement('ul');
-      ageGroups.forEach(({ label, key }) => {
+    if (type === 'Day') {
+      const mealTitle = document.createElement('li');
+      mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
+      ul.appendChild(mealTitle);
+
+      Object.entries(meals).forEach(([k, v]) => {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${label}:</strong> ${ageCounts[key.toLowerCase()]}`;
-        ageUl.appendChild(li);
-      });
-      ageSection.appendChild(ageUl);
-
-      div.appendChild(ageSection);
-
-      // ===== EXISTING SUMMARY =====
-      ['Day', 'Evening'].forEach(type => {
-        const { total, responses, meals } = summarizeGuests(guests, type);
-
-        const section = document.createElement('div');
-        section.className = 'summary-section';
-
-        const h3 = document.createElement('h3');
-        h3.textContent = `${type} Guests`;
-        section.appendChild(h3);
-
-        const ul = document.createElement('ul');
-        const totalLi = document.createElement('li');
-        totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
-        ul.appendChild(totalLi);
-
-        Object.entries(responses).forEach(([k, v]) => {
-          const li = document.createElement('li');
-          li.innerHTML = `<strong>${k}:</strong> ${v}`;
-          ul.appendChild(li);
-        });
-
-        if (type === 'Day') {
-          const mealTitle = document.createElement('li');
-          mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
-          ul.appendChild(mealTitle);
-
-          Object.entries(meals).forEach(([k, v]) => {
-            const li = document.createElement('li');
-            li.style.marginLeft = '15px';
-            li.textContent = `${k}: ${v}`;
-            ul.appendChild(li);
-          });
-        }
-
-        section.appendChild(ul);
-        div.appendChild(section);
+        li.style.marginLeft = '15px';
+        li.textContent = `${k}: ${v}`;
+        ul.appendChild(li);
       });
     }
 
+    section.appendChild(ul);
+    div.appendChild(section);
+  });
+
+  // ===== AGE GROUP SUMMARY (Yes responses only, LAST) =====
+  const ageGroups = [
+    { label: 'Adult', key: 'Adult' },
+    { label: 'Teen (12-17)', key: 'Teen (12-17)' },
+    { label: 'Child (2-11)', key: 'Child (2-11)' },
+    { label: 'Baby (under 2)', key: 'Baby (under 2)' }
+  ];
+  const ageCounts = {};
+  ageGroups.forEach(g => ageCounts[g.key.toLowerCase()] = 0);
+
+  guests.forEach(g => {
+    const res = (g.Response || '').trim().toLowerCase();
+    if (res === 'yes, i will be there') {
+      const age = (g.Age || '').trim().toLowerCase();
+      if (age in ageCounts) {
+        ageCounts[age]++;
+      }
+    }
+  });
+
+  const ageSection = document.createElement('div');
+  ageSection.className = 'summary-section';
+
+  const ageTitle = document.createElement('h3');
+  ageTitle.textContent = 'By Age Group (Attending)';
+  ageSection.appendChild(ageTitle);
+
+  const ageUl = document.createElement('ul');
+  ageGroups.forEach(({ label, key }) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<strong>${label}:</strong> ${ageCounts[key.toLowerCase()]}`;
+    ageUl.appendChild(li);
+  });
+  ageSection.appendChild(ageUl);
+
+  div.appendChild(ageSection);
+}
     async function loadData() {
       const content = document.getElementById('content');
       const summary = document.getElementById('summary-content');
@@ -552,6 +553,7 @@
   </script>
 </body>
 </html>
+
 
 
 
