@@ -46,28 +46,28 @@
     }
 
     #content {
-  flex: 1 1 600px;
-  min-width: 320px;
-}
+      flex: 1 1 600px;
+      min-width: 320px;
+    }
 
-#summary-panel {
-  width: 300px;
-}
+    #summary-panel {
+      width: 300px;
+    }
 
-/* Add this inside your existing media query */
-@media (max-width: 768px) {
-  .container {
-    flex-direction: column-reverse;
-    gap: 20px;
-  }
+    /* Add this inside your existing media query */
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column-reverse;
+        gap: 20px;
+      }
 
-  #content,
-  #summary-panel {
-    flex: 1 1 100%;
-    width: 100%;      /* <-- make both panels full-width on mobile */
-    min-width: unset; /* <-- allow shrinking smaller than 320px */
-  }
-}
+      #content,
+      #summary-panel {
+        flex: 1 1 100%;
+        width: 100%;      /* <-- make both panels full-width on mobile */
+        min-width: unset; /* <-- allow shrinking smaller than 320px */
+      }
+    }
 
     h2 {
       font-size: 1.3em;
@@ -224,6 +224,7 @@
       }
       #modal {
        width: 100%;
+      }
     }
   </style>
 </head>
@@ -371,6 +372,41 @@
       const div = document.getElementById('summary-content');
       div.innerHTML = '';
 
+      // ===== AGE GROUP SUMMARY =====
+      const ageGroups = [
+        { label: 'Adult', key: 'Adult' },
+        { label: 'Teen (12-17)', key: 'Teen (12-17)' },
+        { label: 'Child (2-11)', key: 'Child (2-11)' },
+        { label: 'Baby (under 2)', key: 'Baby (under 2)' }
+      ];
+      const ageCounts = {};
+      ageGroups.forEach(g => ageCounts[g.key.toLowerCase()] = 0);
+
+      guests.forEach(g => {
+        const age = (g.Age || '').trim().toLowerCase();
+        if (age in ageCounts) {
+          ageCounts[age]++;
+        }
+      });
+
+      const ageSection = document.createElement('div');
+      ageSection.className = 'summary-section';
+
+      const ageTitle = document.createElement('h3');
+      ageTitle.textContent = 'By Age Group';
+      ageSection.appendChild(ageTitle);
+
+      const ageUl = document.createElement('ul');
+      ageGroups.forEach(({ label, key }) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${label}:</strong> ${ageCounts[key.toLowerCase()]}`;
+        ageUl.appendChild(li);
+      });
+      ageSection.appendChild(ageUl);
+
+      div.appendChild(ageSection);
+
+      // ===== EXISTING SUMMARY =====
       ['Day', 'Evening'].forEach(type => {
         const { total, responses, meals } = summarizeGuests(guests, type);
 
@@ -516,6 +552,7 @@
   </script>
 </body>
 </html>
+
 
 
 
