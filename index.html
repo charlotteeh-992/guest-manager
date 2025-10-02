@@ -11,9 +11,6 @@
       color: #000;
       padding: 30px;
       margin: 0;
-  box-sizing: border-box;       /* Add this */
-  max-width: 100vw;             /* Add this */
-  overflow-x: hidden;           /* Add this */
     }
 
     h1 {
@@ -23,7 +20,6 @@
       margin-bottom: 10px;
     }
 
-    /* Countdown text */
     .countdown {
       text-align: center;
       font-size: 1.1em;
@@ -45,7 +41,6 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-      /* removed forced scroll */
     }
 
     #content {
@@ -57,18 +52,23 @@
       width: 300px;
     }
 
-    /* Add this inside your existing media query */
     @media (max-width: 768px) {
       .container {
-        flex-direction: column-reverse;
-        gap: 10px;
+        flex-direction: column;
+        gap: 20px;
       }
 
-      #content,
       #summary-panel {
+        order: -1; /* Show summary panel first on mobile */
+        width: 100%;
         flex: 1 1 100%;
-        width: 100%;      /* <-- make both panels full-width on mobile */
-        min-width: unset; /* <-- allow shrinking smaller than 320px */
+      }
+
+      #content {
+        order: 0;
+        width: 100%;
+        flex: 1 1 100%;
+        min-width: unset;
       }
     }
 
@@ -81,11 +81,11 @@
       gap: 10px;
       border-bottom: 2px solid #f86791;
       padding-bottom: 5px;
-      margin-top: 30px; /* extra spacing above group headings */
+      margin-top: 30px;
     }
 
     h2:first-of-type {
-      margin-top: 0; /* don’t push down the very first section */
+      margin-top: 0;
     }
 
     h2 button {
@@ -113,7 +113,6 @@
       color: #a0374f;
     }
 
-    /* Progress Bar */
     .progress-wrapper {
       background: #eee;
       height: 16px;
@@ -143,7 +142,6 @@
       left: 0;
     }
 
-    /* Modal Styling */
     #modal {
       display: none;
       position: fixed;
@@ -163,7 +161,6 @@
       position: relative;
     }
 
-    /* Close button */
     #modal .close-btn {
       position: absolute;
       top: 10px;
@@ -215,20 +212,6 @@
     .summary-section ul {
       padding-left: 20px;
     }
-
-    @media (max-width: 768px) {
-      .container {
-        flex-direction: column-reverse;
-        gap: 20px;
-      }
-
-      #summary-panel {
-        width: 100%;
-      }
-      #modal {
-       width: 100%;
-      }
-    }
   </style>
 </head>
 <body>
@@ -242,7 +225,6 @@
     </main>
     <aside id="summary-panel">
       <h2>Summary</h2>
-      <!-- Progress bar container -->
       <div class="progress-wrapper">
         <div class="progress-bar" id="progress-bar"></div>
         <div class="progress-label" id="progress-label">0%</div>
@@ -251,7 +233,6 @@
     </aside>
   </div>
 
-  <!-- Modal -->
   <div id="modal">
     <div class="modal-content">
       <button class="close-btn" onclick="closeModal()">×</button>
@@ -355,10 +336,19 @@
       const total = filtered.length;
       const responses = {};
       const meals = {};
+      const ageGroups = {};
+      const attendingAges = {};
 
       filtered.forEach(g => {
         const r = (g.Response || 'Pending').trim();
         responses[r] = (responses[r] || 0) + 1;
+
+        const age = (g.Age || 'Unknown').trim();
+        ageGroups[age] = (ageGroups[age] || 0) + 1;
+
+        if (r.toLowerCase().includes('yes')) {
+          attendingAges[age] = (attendingAges[age] || 0) + 1;
+        }
 
         if (type.toLowerCase() === 'day') {
           const meal = g['Meal type'] || 'None';
@@ -366,90 +356,91 @@
         }
       });
 
-      return { total, responses, meals };
+      return { total, responses, meals, ageGroups, attendingAges };
     }
-function renderSummary(guests) {
-  updateProgressBar(guests); // update progress bar
 
-  const div = document.getElementById('summary-content');
-  div.innerHTML = '';
+    function renderSummary(guests) {
+      updateProgressBar(guests);
 
-  // ===== DAY / EVENING SUMMARY =====
-  ['Day', 'Evening'].forEach(type => {
-    const { total, responses, meals } = summarizeGuests(guests, type);
+      const div = document.getElementById('summary-content');
+      div.innerHTML = '';
 
-    const section = document.createElement('div');
-    section.className = 'summary-section';
+      const invitedSection = document.createElement('div');
+      invitedSection.className = 'summary-section';
+      const invitedHeader = document.createElement('h3');
+      invitedHeader.textContent = 'Total Invited';
+      invitedSection.appendChild(invitedHeader);
 
-    const h3 = document.createElement('h3');
-    h3.textContent = `${type} Guests`;
-    section.appendChild(h3);
+      const invitedList = document.createElement('ul');
 
-    const ul = document.createElement('ul');
-    const totalLi = document.createElement('li');
-    totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
-    ul.appendChild(totalLi);
+      ['Day', 'Evening'].forEach(type => {
+        const { total, ageGroups } = summarizeGuests(guests, type);
 
-    Object.entries(responses).forEach(([k, v]) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<strong>${k}:</strong> ${v}`;
-      ul.appendChild(li);
-    });
-
-    if (type === 'Day') {
-      const mealTitle = document.createElement('li');
-      mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
-      ul.appendChild(mealTitle);
-
-      Object.entries(meals).forEach(([k, v]) => {
         const li = document.createElement('li');
-        li.style.marginLeft = '15px';
-        li.textContent = `${k}: ${v}`;
-        ul.appendChild(li);
+        li.innerHTML = `<strong>${type}:</strong> ${total}`;
+        invitedList.appendChild(li);
+
+        Object.entries(ageGroups).forEach(([age, count]) => {
+          const ageLi = document.createElement('li');
+          ageLi.style.marginLeft = '15px';
+          ageLi.textContent = `${age}: ${count}`;
+          invitedList.appendChild(ageLi);
+        });
+      });
+
+      invitedSection.appendChild(invitedList);
+      div.appendChild(invitedSection);
+
+      ['Day', 'Evening'].forEach(type => {
+        const { total, responses, meals, attendingAges } = summarizeGuests(guests, type);
+
+        const section = document.createElement('div');
+        section.className = 'summary-section';
+
+        const h3 = document.createElement('h3');
+        h3.textContent = `${type} Guests`;
+        section.appendChild(h3);
+
+        const ul = document.createElement('ul');
+        const totalLi = document.createElement('li');
+        totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
+        ul.appendChild(totalLi);
+
+        Object.entries(responses).forEach(([k, v]) => {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${k}:</strong> ${v}`;
+          ul.appendChild(li);
+        });
+
+        const ageTitle = document.createElement('li');
+        ageTitle.innerHTML = `<strong>Age Attending:</strong>`;
+        ul.appendChild(ageTitle);
+
+        Object.entries(attendingAges).forEach(([age, count]) => {
+          const li = document.createElement('li');
+          li.style.marginLeft = '15px';
+          li.textContent = `${age}: ${count}`;
+          ul.appendChild(li);
+        });
+
+        if (type === 'Day') {
+          const mealTitle = document.createElement('li');
+          mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
+          ul.appendChild(mealTitle);
+
+          Object.entries(meals).forEach(([k, v]) => {
+            const li = document.createElement('li');
+            li.style.marginLeft = '15px';
+            li.textContent = `${k}: ${v}`;
+            ul.appendChild(li);
+          });
+        }
+
+        section.appendChild(ul);
+        div.appendChild(section);
       });
     }
 
-    section.appendChild(ul);
-    div.appendChild(section);
-  });
-
-  // ===== AGE GROUP SUMMARY (Yes responses only, LAST) =====
-  const ageGroups = [
-    { label: 'Adult', key: 'Adult' },
-    { label: 'Teen (12-17)', key: 'Teen (12-17)' },
-    { label: 'Child (2-11)', key: 'Child (2-11)' },
-    { label: 'Baby (under 2)', key: 'Baby (under 2)' }
-  ];
-  const ageCounts = {};
-  ageGroups.forEach(g => ageCounts[g.key.toLowerCase()] = 0);
-
-  guests.forEach(g => {
-    const res = (g.Response || '').trim().toLowerCase();
-    if (res === 'yes, i will be there') {
-      const age = (g.Age || '').trim().toLowerCase();
-      if (age in ageCounts) {
-        ageCounts[age]++;
-      }
-    }
-  });
-
-  const ageSection = document.createElement('div');
-  ageSection.className = 'summary-section';
-
-  const ageTitle = document.createElement('h3');
-  ageTitle.textContent = 'By Age Group (Attending)';
-  ageSection.appendChild(ageTitle);
-
-  const ageUl = document.createElement('ul');
-  ageGroups.forEach(({ label, key }) => {
-    const li = document.createElement('li');
-    li.innerHTML = `<strong>${label}:</strong> ${ageCounts[key.toLowerCase()]}`;
-    ageUl.appendChild(li);
-  });
-  ageSection.appendChild(ageUl);
-
-  div.appendChild(ageSection);
-}
     async function loadData() {
       const content = document.getElementById('content');
       const summary = document.getElementById('summary-content');
@@ -533,7 +524,6 @@ function renderSummary(guests) {
       if (e.target.id === 'modal') closeModal();
     }
 
-    // Countdown (days only)
     const weddingDate = new Date("2026-06-28T12:00:00").getTime();
     function updateCountdown() {
       const now = new Date().getTime();
@@ -549,13 +539,15 @@ function renderSummary(guests) {
       document.getElementById("countdown").textContent =
         `${days} days until the wedding 💕`;
     }
-    const timer = setInterval(updateCountdown, 1000 * 60 * 60); // update hourly
+
+    const timer = setInterval(updateCountdown, 1000 * 60 * 60);
     updateCountdown();
 
     loadData();
   </script>
 </body>
 </html>
+
 
 
 
