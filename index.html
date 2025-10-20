@@ -253,298 +253,320 @@
     </div>
   </div>
 
-  <script>
-    const API_URL = 'https://api.sheetbest.com/sheets/d965d241-ad99-408a-81af-f05a7215b59f';
-    let selectedGroup = '';
+<script>
+  const API_URL = 'https://script.google.com/macros/s/AKfycbz7RfUNAUwz5r29R4xgdeI4jPTpWzjtqtiBF_EQ5CKCAhpppPTyXMao1Qumo88IK7Gn/exec';
+  let selectedGroup = '';
 
-    function updateProgressBar(guests) {
-      const total = guests.length;
-      const responded = guests.filter(g => g.Response && g.Response.trim() !== '').length;
-      const percent = total > 0 ? Math.round((responded / total) * 100) : 0;
+  function updateProgressBar(guests) {
+    const total = guests.length;
+    const responded = guests.filter(g => g.Response && g.Response.trim() !== '').length;
+    const percent = total > 0 ? Math.round((responded / total) * 100) : 0;
 
-      document.getElementById('progress-bar').style.width = percent + '%';
-      document.getElementById('progress-label').textContent = `${responded}/${total} (${percent}%)`;
+    document.getElementById('progress-bar').style.width = percent + '%';
+    document.getElementById('progress-label').textContent = `${responded}/${total} (${percent}%)`;
+  }
+
+  function createGuestElement(guest) {
+    const div = document.createElement('div');
+    div.className = 'guest';
+
+    const icon = document.createElement('span');
+    const res = (guest.Response || '').trim().toLowerCase();
+    icon.textContent = res === 'yes, i will be there' ? '✅' :
+                       res === "sorry i can't make it" ? '❌' :
+                       '⏳';
+
+    const name = document.createElement('span');
+    name.textContent = guest.Name;
+
+    if ((guest.Allergies || '').trim().toLowerCase() === 'yes') {
+      const allergyIcon = document.createElement('span');
+      allergyIcon.textContent = '⚠️';
+      allergyIcon.title = 'Allergies reported';
+      allergyIcon.style.color = 'red';
+      allergyIcon.style.marginLeft = '6px';
+      name.appendChild(allergyIcon);
     }
 
-    function createGuestElement(guest) {
-      const div = document.createElement('div');
-      div.className = 'guest';
+    const attendanceType = guest.AttendanceType || 'N/A';
+    const details = document.createElement('div');
+    details.style.marginLeft = '12px';
+    details.style.fontSize = '0.9em';
+    details.style.color = '#a0374f';
 
-      const icon = document.createElement('span');
-      const res = (guest.Response || '').trim().toLowerCase();
-      icon.textContent = res === 'yes, i will be there' ? '✅' :
-                         res === "sorry i can't make it" ? '❌' :
-                         '⏳';
+    if (attendanceType.toLowerCase() === 'evening') {
+      details.innerHTML = `<div><strong>Attendance:</strong> ${attendanceType}</div>`;
+    } else {
+      const mealPreference = guest['Meal type'] || 'None';
+      details.innerHTML = `<div><strong>Attendance:</strong> ${attendanceType}</div>
+                           <div><strong>Meal:</strong> ${mealPreference}</div>`;
+    }
 
-      const name = document.createElement('span');
-      name.textContent = guest.Name;
+    div.appendChild(icon);
+    div.appendChild(name);
+    div.appendChild(details);
 
-      if ((guest.Allergies || '').trim().toLowerCase() === 'yes') {
-        const allergyIcon = document.createElement('span');
-        allergyIcon.textContent = '⚠️';
-        allergyIcon.title = 'Allergies reported';
-        allergyIcon.style.color = 'red';
-        allergyIcon.style.marginLeft = '6px';
-        name.appendChild(allergyIcon);
+    return div;
+  }
+
+  function createGroupSection(groupName, guests) {
+    const section = document.createElement('section');
+
+    const header = document.createElement('h2');
+    const span = document.createElement('span');
+    span.textContent = groupName;
+
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '+';
+    addBtn.onclick = () => {
+      selectedGroup = groupName;
+      document.getElementById('modal').style.display = 'flex';
+    };
+
+    header.appendChild(span);
+    header.appendChild(addBtn);
+    section.appendChild(header);
+
+    guests.forEach(g => section.appendChild(createGuestElement(g)));
+    return section;
+  }
+
+  function summarizeGuests(guests, type) {
+    const filtered = guests.filter(g => (g.AttendanceType || '').toLowerCase() === type.toLowerCase());
+    const total = filtered.length;
+    const responses = {};
+    const meals = {};
+    const ageGroups = {};
+    const attendingAges = {};
+
+    filtered.forEach(g => {
+      const r = (g.Response || 'Pending').trim();
+      responses[r] = (responses[r] || 0) + 1;
+
+      const age = (g.Age || 'Unknown').trim();
+      ageGroups[age] = (ageGroups[age] || 0) + 1;
+
+      if (r.toLowerCase().includes('yes')) {
+        attendingAges[age] = (attendingAges[age] || 0) + 1;
       }
 
-      const attendanceType = guest.AttendanceType || 'N/A';
-      const details = document.createElement('div');
-      details.style.marginLeft = '12px';
-      details.style.fontSize = '0.9em';
-      details.style.color = '#a0374f';
-
-      if (attendanceType.toLowerCase() === 'evening') {
-        details.innerHTML = `<div><strong>Attendance:</strong> ${attendanceType}</div>`;
-      } else {
-        const mealPreference = guest['Meal type'] || 'None';
-        details.innerHTML = `<div><strong>Attendance:</strong> ${attendanceType}</div>
-                             <div><strong>Meal:</strong> ${mealPreference}</div>`;
+      if (type.toLowerCase() === 'day') {
+        const meal = g['Meal type'] || 'None';
+        meals[meal] = (meals[meal] || 0) + 1;
       }
+    });
 
-      div.appendChild(icon);
-      div.appendChild(name);
-      div.appendChild(details);
+    return { total, responses, meals, ageGroups, attendingAges };
+  }
 
-      return div;
-    }
+  function renderSummary(guests) {
+    updateProgressBar(guests);
 
-    function createGroupSection(groupName, guests) {
-      const section = document.createElement('section');
+    const div = document.getElementById('summary-content');
+    div.innerHTML = '';
 
-      const header = document.createElement('h2');
-      const span = document.createElement('span');
-      span.textContent = groupName;
+    const invitedSection = document.createElement('div');
+    invitedSection.className = 'summary-section';
+    const invitedHeader = document.createElement('h3');
+    invitedHeader.textContent = 'Total Invited';
+    invitedSection.appendChild(invitedHeader);
 
-      const addBtn = document.createElement('button');
-      addBtn.textContent = '+';
-      addBtn.onclick = () => {
-        selectedGroup = groupName;
-        document.getElementById('modal').style.display = 'flex';
-      };
+    const invitedList = document.createElement('ul');
 
-      header.appendChild(span);
-      header.appendChild(addBtn);
-      section.appendChild(header);
+    ['Day', 'Evening'].forEach(type => {
+      const { total, ageGroups } = summarizeGuests(guests, type);
 
-      guests.forEach(g => section.appendChild(createGuestElement(g)));
-      return section;
-    }
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>${type}:</strong> ${total}`;
+      invitedList.appendChild(li);
 
-    function summarizeGuests(guests, type) {
-      const filtered = guests.filter(g => (g.AttendanceType || '').toLowerCase() === type.toLowerCase());
-      const total = filtered.length;
-      const responses = {};
-      const meals = {};
-      const ageGroups = {};
-      const attendingAges = {};
-
-      filtered.forEach(g => {
-        const r = (g.Response || 'Pending').trim();
-        responses[r] = (responses[r] || 0) + 1;
-
-        const age = (g.Age || 'Unknown').trim();
-        ageGroups[age] = (ageGroups[age] || 0) + 1;
-
-        if (r.toLowerCase().includes('yes')) {
-          attendingAges[age] = (attendingAges[age] || 0) + 1;
-        }
-
-        if (type.toLowerCase() === 'day') {
-          const meal = g['Meal type'] || 'None';
-          meals[meal] = (meals[meal] || 0) + 1;
-        }
+      Object.entries(ageGroups).forEach(([age, count]) => {
+        const ageLi = document.createElement('li');
+        ageLi.style.marginLeft = '15px';
+        ageLi.textContent = `${age}: ${count}`;
+        invitedList.appendChild(ageLi);
       });
+    });
 
-      return { total, responses, meals, ageGroups, attendingAges };
-    }
+    invitedSection.appendChild(invitedList);
+    div.appendChild(invitedSection);
 
-    function renderSummary(guests) {
-      updateProgressBar(guests);
+    ['Day', 'Evening'].forEach(type => {
+      const { total, responses, meals, attendingAges } = summarizeGuests(guests, type);
 
-      const div = document.getElementById('summary-content');
-      div.innerHTML = '';
+      const section = document.createElement('div');
+      section.className = 'summary-section';
 
-      const invitedSection = document.createElement('div');
-      invitedSection.className = 'summary-section';
-      const invitedHeader = document.createElement('h3');
-      invitedHeader.textContent = 'Total Invited';
-      invitedSection.appendChild(invitedHeader);
+      const h3 = document.createElement('h3');
+      h3.textContent = `${type} Guests`;
+      section.appendChild(h3);
 
-      const invitedList = document.createElement('ul');
+      const ul = document.createElement('ul');
+      const totalLi = document.createElement('li');
+      totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
+      ul.appendChild(totalLi);
 
-      ['Day', 'Evening'].forEach(type => {
-        const { total, ageGroups } = summarizeGuests(guests, type);
-
+      Object.entries(responses).forEach(([k, v]) => {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${type}:</strong> ${total}`;
-        invitedList.appendChild(li);
-
-        Object.entries(ageGroups).forEach(([age, count]) => {
-          const ageLi = document.createElement('li');
-          ageLi.style.marginLeft = '15px';
-          ageLi.textContent = `${age}: ${count}`;
-          invitedList.appendChild(ageLi);
-        });
+        li.innerHTML = `<strong>${k}:</strong> ${v}`;
+        ul.appendChild(li);
       });
 
-      invitedSection.appendChild(invitedList);
-      div.appendChild(invitedSection);
+      const ageTitle = document.createElement('li');
+      ageTitle.innerHTML = `<strong>Age Attending:</strong>`;
+      ul.appendChild(ageTitle);
 
-      ['Day', 'Evening'].forEach(type => {
-        const { total, responses, meals, attendingAges } = summarizeGuests(guests, type);
+      Object.entries(attendingAges).forEach(([age, count]) => {
+        const li = document.createElement('li');
+        li.style.marginLeft = '15px';
+        li.textContent = `${age}: ${count}`;
+        ul.appendChild(li);
+      });
 
-        const section = document.createElement('div');
-        section.className = 'summary-section';
+      if (type === 'Day') {
+        const mealTitle = document.createElement('li');
+        mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
+        ul.appendChild(mealTitle);
 
-        const h3 = document.createElement('h3');
-        h3.textContent = `${type} Guests`;
-        section.appendChild(h3);
-
-        const ul = document.createElement('ul');
-        const totalLi = document.createElement('li');
-        totalLi.innerHTML = `<strong>Total:</strong> ${total}`;
-        ul.appendChild(totalLi);
-
-        Object.entries(responses).forEach(([k, v]) => {
-          const li = document.createElement('li');
-          li.innerHTML = `<strong>${k}:</strong> ${v}`;
-          ul.appendChild(li);
-        });
-
-        const ageTitle = document.createElement('li');
-        ageTitle.innerHTML = `<strong>Age Attending:</strong>`;
-        ul.appendChild(ageTitle);
-
-        Object.entries(attendingAges).forEach(([age, count]) => {
+        Object.entries(meals).forEach(([k, v]) => {
           const li = document.createElement('li');
           li.style.marginLeft = '15px';
-          li.textContent = `${age}: ${count}`;
+          li.textContent = `${k}: ${v}`;
           ul.appendChild(li);
         });
-
-        if (type === 'Day') {
-          const mealTitle = document.createElement('li');
-          mealTitle.innerHTML = `<strong>Meal Type Totals:</strong>`;
-          ul.appendChild(mealTitle);
-
-          Object.entries(meals).forEach(([k, v]) => {
-            const li = document.createElement('li');
-            li.style.marginLeft = '15px';
-            li.textContent = `${k}: ${v}`;
-            ul.appendChild(li);
-          });
-        }
-
-        section.appendChild(ul);
-        div.appendChild(section);
-      });
-    }
-
-    async function loadData() {
-      const content = document.getElementById('content');
-      const summary = document.getElementById('summary-content');
-      try {
-        const res = await fetch(API_URL);
-        const guests = await res.json();
-
-        content.innerHTML = '';
-        const groups = {};
-        guests.forEach(g => {
-          const group = g.Group || 'Ungrouped';
-          if (!groups[group]) groups[group] = [];
-          groups[group].push(g);
-        });
-
-        Object.entries(groups).forEach(([groupName, groupGuests]) => {
-          content.appendChild(createGroupSection(groupName, groupGuests));
-        });
-
-        renderSummary(guests);
-      } catch (e) {
-        content.innerHTML = `<p class="error">Failed to load guests</p>`;
-        summary.innerHTML = '';
-      }
-    }
-
-    function closeModal() {
-      document.getElementById('modal').style.display = 'none';
-      document.getElementById('guestName').value = '';
-      document.getElementById('linkedGuests').value = '';
-    }
-
-    async function submitGuest() {
-      const name = document.getElementById('guestName').value.trim();
-      const linkedStr = document.getElementById('linkedGuests').value.trim();
-      const attendanceType = document.querySelector('input[name="attendanceType"]:checked').value;
-
-      if (!name) {
-        alert('Please enter a name.');
-        return;
       }
 
-      const linkedGuests = linkedStr
-        ? linkedStr.split(',').map(n => n.trim()).filter(n => n && n !== name)
-        : [];
+      section.appendChild(ul);
+      div.appendChild(section);
+    });
+  }
 
-      const allGuests = [];
+  async function loadData() {
+  const content = document.getElementById('content');
+  const summary = document.getElementById('summary-content');
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
 
-      allGuests.push({
-        Name: name,
-        LinkedGuests: linkedGuests.join(', '),
-        AttendanceType: attendanceType,
-        Group: selectedGroup
-      });
-
-      linkedGuests.forEach(lg => {
-        const others = [name, ...linkedGuests.filter(n => n !== lg)];
-        allGuests.push({
-          Name: lg,
-          LinkedGuests: others.join(', '),
-          AttendanceType: attendanceType,
-          Group: selectedGroup
-        });
-      });
-
-      try {
-        await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(allGuests)
-        });
-
-        closeModal();
-        loadData();
-      } catch (e) {
-        alert('Error adding guests. Please try again.');
-      }
+    if (json.status !== 'success') {
+      throw new Error(json.message || 'Failed to load guests');
     }
 
-    window.onclick = function (e) {
-      if (e.target.id === 'modal') closeModal();
+    const guests = json.guests; // <-- here
+
+    content.innerHTML = '';
+    const groups = {};
+    guests.forEach(g => {
+      const group = g.Group || 'Ungrouped';
+      if (!groups[group]) groups[group] = [];
+      groups[group].push(g);
+    });
+
+    Object.entries(groups).forEach(([groupName, groupGuests]) => {
+      content.appendChild(createGroupSection(groupName, groupGuests));
+    });
+
+    renderSummary(guests);
+  } catch (e) {
+    content.innerHTML = `<p class="error">Failed to load guests: ${e.message}</p>`;
+    summary.innerHTML = '';
+  }
+}
+  function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+    document.getElementById('guestName').value = '';
+    document.getElementById('linkedGuests').value = '';
+  }
+
+async function submitGuest() {
+  const name = document.getElementById('guestName').value.trim();
+  const linkedStr = document.getElementById('linkedGuests').value.trim();
+  const attendanceType = document.querySelector('input[name="attendanceType"]:checked').value;
+
+  if (!name) {
+    alert('Please enter a name.');
+    return;
+  }
+
+  const linkedGuests = linkedStr
+    ? linkedStr.split(',').map(n => n.trim()).filter(n => n && n !== name)
+    : [];
+
+  const allGuests = [];
+
+  allGuests.push({
+    Name: name,
+    LinkedGuests: linkedGuests.join(', '),
+    AttendanceType: attendanceType,
+    Group: selectedGroup
+  });
+
+  linkedGuests.forEach(lg => {
+    const others = [name, ...linkedGuests.filter(n => n !== lg)];
+    allGuests.push({
+      Name: lg,
+      LinkedGuests: others.join(', '),
+      AttendanceType: attendanceType,
+      Group: selectedGroup
+    });
+  });
+
+  try {
+    // NEW: create a JSON payload object
+    const payload = {
+      action: 'updateGuestData',
+      data: allGuests
+    };
+
+    // NEW: send JSON as raw body
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8', // raw JSON text
+      },
+      body: JSON.stringify(payload), // convert JS object to JSON string
+    });
+
+    // parse response JSON
+    const json = await res.json();
+
+    if (json.status !== 'success') {
+      throw new Error(json.message || 'Failed to update guests');
     }
 
-    const weddingDate = new Date("2026-06-28T12:00:00").getTime();
-    function updateCountdown() {
-      const now = new Date().getTime();
-      const diff = weddingDate - now;
-
-      if (diff <= 0) {
-        document.getElementById("countdown").textContent = "💍 It's Wedding Day!";
-        clearInterval(timer);
-        return;
-      }
-
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      document.getElementById("countdown").textContent =
-        `${days} days until the wedding 💕`;
-    }
-
-    const timer = setInterval(updateCountdown, 1000 * 60 * 60);
-    updateCountdown();
-
+    closeModal();
     loadData();
-  </script>
+
+  } catch (e) {
+    alert('Error adding guests: ' + e.message);
+  }
+}
+
+  window.onclick = function (e) {
+    if (e.target.id === 'modal') closeModal();
+  }
+
+  const weddingDate = new Date("2026-06-28T12:00:00").getTime();
+  function updateCountdown() {
+    const now = new Date().getTime();
+    const diff = weddingDate - now;
+
+    if (diff <= 0) {
+      document.getElementById("countdown").textContent = "💍 It's Wedding Day!";
+      clearInterval(timer);
+      return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    document.getElementById("countdown").textContent =
+      `${days} days until the wedding 💕`;
+  }
+
+  const timer = setInterval(updateCountdown, 1000 * 60 * 60);
+  updateCountdown();
+
+  loadData();
+</script>
 </body>
 </html>
 
