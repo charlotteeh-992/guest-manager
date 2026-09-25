@@ -107,20 +107,6 @@
       font-weight: 600;
     }
 
-    .sync-btn {
-      background: rgba(255,255,255,0.2);
-      border: none;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 16px;
-    }
-
     .nav-drawer {
       position: absolute;
       top: 64px;
@@ -215,7 +201,7 @@
     }
 
     .day-number {
-      font-size: 32px;
+      font-size: 28px;
       font-weight: 800;
       line-height: 1.2;
       color: #000;
@@ -433,11 +419,21 @@
       cursor: grab;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       touch-action: none;
+      position: relative;
+      z-index: 10;
     }
 
     .task-item-draggable.selected {
       outline: 2px solid #526096;
       background-color: #6db3df;
+    }
+
+    .task-item-draggable.dragging-mobile {
+      opacity: 0.8;
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     }
 
     .schedule-row {
@@ -498,47 +494,6 @@
       box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     }
 
-    .modal {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.6);
-      z-index: 200;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-
-    .modal.active { display: flex; }
-
-    .modal-card {
-      background: white;
-      border-radius: 20px;
-      padding: 20px;
-      width: 100%;
-      max-width: 320px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-    }
-
-    .modal-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #526096;
-      margin-bottom: 12px;
-    }
-
-    .modal-input {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      font-size: 11px;
-      margin-bottom: 12px;
-    }
-
     .sync-status-bar {
       position: absolute;
       bottom: 0;
@@ -581,7 +536,6 @@
         <div class="header-title">28 Day Challenge</div>
         <div class="header-user" id="headerUserLabel">&lt;Mum&gt;</div>
       </div>
-      <button class="sync-btn" id="syncConfigBtn">⚙️</button>
     </header>
 
     <div class="overlay" id="overlay"></div>
@@ -669,27 +623,21 @@
       Connecting to Google Sheets...
     </div>
 
-    <div class="modal" id="syncModal">
-      <div class="modal-card">
-        <div class="modal-title">Google Script API URL</div>
-        <input type="text" class="modal-input" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
-        <button class="btn-primary" id="saveSyncUrlBtn">Save & Fetch Data</button>
-      </div>
-    </div>
-
   </div>
 
   <script>
+    // Hardcoded Google Apps Script Endpoint
+    const googleScriptUrl = "https://script.google.com/macros/s/AKfycbw_nfjP7biI-DVHNLllc8j9TnIszdT1jpMJ5QggiiCcEh_5BRDjEnCvQ_xhRYLJ83Gn/exec";
+
     let currentUser = "Mum";
     let currentDayIndex = 1;
     let taskBank = [];
-    let dateMap = {}; // { 1: "01/10/26", 2: "02/10/26", ... }
+    let dateMap = {}; // Maps Day 1..28 -> "01/10/26"
     
     let userSchedules = { "Mum": {}, "Emma": {}, "Charlotte": {} };
     let userStatuses = { "Mum": {}, "Emma": {}, "Charlotte": {} };
 
     let selectedBankTask = null;
-    let googleScriptUrl = localStorage.getItem('google_script_url') || "";
 
     const menuBtn = document.getElementById('menuBtn');
     const navDrawer = document.getElementById('navDrawer');
@@ -704,12 +652,8 @@
     const scheduleSlotsContainer = document.getElementById('scheduleSlots');
     const saveScheduleBtn = document.getElementById('saveScheduleBtn');
     const statusBar = document.getElementById('statusBar');
-    const syncConfigBtn = document.getElementById('syncConfigBtn');
-    const syncModal = document.getElementById('syncModal');
-    const scriptUrlInput = document.getElementById('scriptUrlInput');
-    const saveSyncUrlBtn = document.getElementById('saveSyncUrlBtn');
 
-    // Helper: Formats Day and Date together (e.g. "Day 1", "Fri-25th")
+    // Helper: Formats Date Strings to UK Display (e.g. "25/09/26" -> "Fri-25th")
     function formatUKDate(ukDateStr) {
       if (!ukDateStr) return "";
       const parts = ukDateStr.split('/');
@@ -732,6 +676,7 @@
       return `${dayName}-${d}${suffix}`;
     }
 
+    // Automatically match today's actual calendar date against the sheet mapping
     function computeTodayDayIndex() {
       const today = new Date();
       const td = today.getDate();
@@ -754,13 +699,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       setupNavigation();
-      if (googleScriptUrl) {
-        scriptUrlInput.value = googleScriptUrl;
-        fetchSheetData();
-      } else {
-        statusBar.textContent = "Script URL missing. Tap ⚙️ to set up.";
-        syncModal.classList.add('active');
-      }
+      fetchSheetData();
     });
 
     function setupNavigation() {
@@ -786,15 +725,6 @@
           overlay.classList.remove('active');
         });
       });
-
-      syncConfigBtn.addEventListener('click', () => { syncModal.classList.add('active'); });
-
-      saveSyncUrlBtn.addEventListener('click', () => {
-        googleScriptUrl = scriptUrlInput.value.trim();
-        localStorage.setItem('google_script_url', googleScriptUrl);
-        syncModal.classList.remove('active');
-        fetchSheetData();
-      });
     }
 
     function switchView(viewId) {
@@ -818,7 +748,6 @@
     });
 
     async function fetchSheetData() {
-      if (!googleScriptUrl) return;
       statusBar.textContent = "Fetching live data...";
       
       try {
@@ -843,12 +772,11 @@
         if (document.getElementById('editView').classList.contains('active')) renderEditView();
       } catch (err) {
         console.error(err);
-        statusBar.textContent = "Failed to fetch data. Check Script URL permissions.";
+        statusBar.textContent = "Failed to fetch data from Google Sheets.";
       }
     }
 
     async function postToSheet(payload) {
-      if (!googleScriptUrl) return;
       statusBar.textContent = "Saving...";
 
       try {
@@ -901,7 +829,6 @@
       for (let day = 1; day <= 28; day++) {
         const tr = document.createElement('tr');
         
-        // Day Cell showing both Day X and Date
         const tdDate = document.createElement('td');
         tdDate.className = "day-cell-label";
         const dateFormatted = formatUKDate(dateMap[day]);
@@ -982,10 +909,12 @@
           item.textContent = task;
           item.setAttribute('draggable', 'true');
 
+          // Desktop Drag
           item.addEventListener('dragstart', (e) => {
             e.dataTransfer.setData('text/plain', task);
           });
 
+          // Tap Select (Desktop & Mobile)
           item.addEventListener('click', () => {
             document.querySelectorAll('.task-item-draggable').forEach(i => i.classList.remove('selected'));
             if (selectedBankTask === task) {
@@ -996,6 +925,9 @@
             }
           });
 
+          // Mobile Touch Drag Support
+          attachTouchEvents(item, task);
+
           taskBankContainer.appendChild(item);
         }
       });
@@ -1003,6 +935,49 @@
       document.querySelectorAll('.drop-slot').forEach(slot => {
         const day = slot.getAttribute('data-day');
         slot.textContent = mySched[day] || "";
+      });
+    }
+
+    // Touch event handling for mobile drag and drop
+    function attachTouchEvents(element, taskText) {
+      let ghostEl = null;
+
+      element.addEventListener('touchstart', (e) => {
+        const touch = e.touches[0];
+        ghostEl = element.cloneNode(true);
+        ghostEl.classList.add('dragging-mobile');
+        ghostEl.style.left = `${touch.clientX - 40}px`;
+        ghostEl.style.top = `${touch.clientY - 20}px`;
+        document.body.appendChild(ghostEl);
+      }, { passive: true });
+
+      element.addEventListener('touchmove', (e) => {
+        if (!ghostEl) return;
+        const touch = e.touches[0];
+        ghostEl.style.left = `${touch.clientX - 40}px`;
+        ghostEl.style.top = `${touch.clientY - 20}px`;
+
+        const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+        document.querySelectorAll('.drop-slot').forEach(s => s.classList.remove('drag-over'));
+        if (dropTarget && dropTarget.classList.contains('drop-slot')) {
+          dropTarget.classList.add('drag-over');
+        }
+      }, { passive: true });
+
+      element.addEventListener('touchend', (e) => {
+        if (ghostEl) {
+          const touch = e.changedTouches[0];
+          const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+          
+          if (dropTarget && dropTarget.classList.contains('drop-slot')) {
+            const day = dropTarget.getAttribute('data-day');
+            assignTaskToSlot(day, taskText);
+          }
+          
+          ghostEl.remove();
+          ghostEl = null;
+        }
+        document.querySelectorAll('.drop-slot').forEach(s => s.classList.remove('drag-over'));
       });
     }
 
