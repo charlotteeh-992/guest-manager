@@ -155,6 +155,44 @@
 
     .overlay.active { display: block; }
 
+    /* Full-screen Loading / Saving Overlay */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .loading-overlay.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #ffffff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
     .main-content {
       position: relative;
       z-index: 5;
@@ -260,6 +298,14 @@
       box-shadow: 0 4px 12px rgba(82, 96, 150, 0.4);
       margin-top: 10px;
       width: 100%;
+      transition: opacity 0.3s, background-color 0.3s;
+    }
+
+    .btn-primary:disabled {
+      background: #8e98b8;
+      cursor: not-allowed;
+      opacity: 0.6;
+      box-shadow: none;
     }
 
     .task-display-pill {
@@ -454,6 +500,11 @@
       line-height: 1.1;
     }
 
+    .day-tag.past-day {
+      background: #8892a0;
+      opacity: 0.8;
+    }
+
     .drop-slot {
       flex-grow: 1;
       background: rgba(255, 255, 255, 0.95);
@@ -466,6 +517,14 @@
       font-size: 10px;
       padding: 4px;
       color: #333;
+    }
+
+    .drop-slot.locked {
+      background: rgba(220, 225, 230, 0.7);
+      border: 1px solid #ccc;
+      color: #777;
+      cursor: not-allowed;
+      font-style: italic;
     }
 
     .drop-slot.drag-over {
@@ -524,6 +583,12 @@
       </svg>
     </div>
 
+    <!-- Saving / Syncing Overlay -->
+    <div class="loading-overlay" id="savingOverlay">
+      <div class="spinner"></div>
+      <div id="loadingOverlayText">Saving changes...</div>
+    </div>
+
     <header class="header">
       <button class="menu-btn" id="menuBtn">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -562,7 +627,7 @@
               <span class="user-chip" onclick="selectPredefinedUser('Emma')">Emma</span>
               <span class="user-chip" onclick="selectPredefinedUser('Charlotte')">Charlotte</span>
             </div>
-            <button class="btn-primary" id="loginBtn">Start Challenge</button>
+            <button class="btn-primary" id="loginBtn" disabled>Loading Data...</button>
           </div>
         </div>
       </section>
@@ -591,10 +656,10 @@
           <table class="calendar-table">
             <thead>
               <tr>
-                <th style="width:28%;">Day</th>
-                <th style="width:24%;">Mum</th>
-                <th style="width:24%;">Emma</th>
-                <th style="width:24%;">Charlotte</th>
+                <th style="width:10%;">Day</th>
+                <th style="width:30%;">Mum</th>
+                <th style="width:30%;">Emma</th>
+                <th style="width:30%;">Charlotte</th>
               </tr>
             </thead>
             <tbody id="calendarGridBody">
@@ -642,6 +707,8 @@
     const menuBtn = document.getElementById('menuBtn');
     const navDrawer = document.getElementById('navDrawer');
     const overlay = document.getElementById('overlay');
+    const savingOverlay = document.getElementById('savingOverlay');
+    const loadingOverlayText = document.getElementById('loadingOverlayText');
     const headerUserLabel = document.getElementById('headerUserLabel');
     const userNameInput = document.getElementById('userNameInput');
     const loginBtn = document.getElementById('loginBtn');
@@ -652,6 +719,16 @@
     const scheduleSlotsContainer = document.getElementById('scheduleSlots');
     const saveScheduleBtn = document.getElementById('saveScheduleBtn');
     const statusBar = document.getElementById('statusBar');
+
+    // Show/Hide Overlay helper
+    function showOverlay(message = "Saving changes...") {
+      loadingOverlayText.textContent = message;
+      savingOverlay.classList.add('active');
+    }
+
+    function hideOverlay() {
+      savingOverlay.classList.remove('active');
+    }
 
     // Helper: Formats Date Strings to UK Display (e.g. "25/09/26" -> "Fri-25th")
     function formatUKDate(ukDateStr) {
@@ -739,6 +816,7 @@
     function selectPredefinedUser(name) { userNameInput.value = name; }
 
     loginBtn.addEventListener('click', () => {
+      if (loginBtn.disabled) return;
       const val = userNameInput.value.trim();
       if (val) {
         currentUser = val;
@@ -749,6 +827,8 @@
 
     async function fetchSheetData() {
       statusBar.textContent = "Fetching live data...";
+      loginBtn.disabled = true;
+      loginBtn.textContent = "Loading Data...";
       
       try {
         const response = await fetch(googleScriptUrl, { redirect: 'follow' });
@@ -767,17 +847,23 @@
 
         statusBar.textContent = "Connected to Google Sheets";
         
+        // Enable Start Challenge Button
+        loginBtn.disabled = false;
+        loginBtn.textContent = "Start Challenge";
+
         if (document.getElementById('todayView').classList.contains('active')) renderTodayView();
         if (document.getElementById('calendarView').classList.contains('active')) renderCalendarView();
         if (document.getElementById('editView').classList.contains('active')) renderEditView();
       } catch (err) {
         console.error(err);
         statusBar.textContent = "Failed to fetch data from Google Sheets.";
+        loginBtn.textContent = "Error Loading Data";
       }
     }
 
     async function postToSheet(payload) {
       statusBar.textContent = "Saving...";
+      showOverlay("Updating Google Sheets...");
 
       try {
         await fetch(googleScriptUrl, {
@@ -790,6 +876,8 @@
       } catch (err) {
         console.error(err);
         statusBar.textContent = "Error saving data";
+      } finally {
+        hideOverlay();
       }
     }
 
@@ -860,35 +948,39 @@
     function setupEditSlots() {
       scheduleSlotsContainer.innerHTML = "";
       for (let day = 1; day <= 28; day++) {
+        const isPast = day < currentDayIndex; // Check if day is prior to today
+
         const row = document.createElement('div');
         row.className = "schedule-row";
 
         const tag = document.createElement('div');
-        tag.className = "day-tag";
+        tag.className = "day-tag" + (isPast ? " past-day" : "");
         const ukDate = formatUKDate(dateMap[day]);
         tag.innerHTML = `Day ${day}<br>${ukDate || ''}`;
 
         const slot = document.createElement('div');
-        slot.className = "drop-slot";
+        slot.className = "drop-slot" + (isPast ? " locked" : "");
         slot.setAttribute('data-day', day);
 
-        slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drag-over'); });
-        slot.addEventListener('dragleave', () => { slot.classList.remove('drag-over'); });
-        slot.addEventListener('drop', (e) => {
-          e.preventDefault();
-          slot.classList.remove('drag-over');
-          const draggedTask = e.dataTransfer.getData('text/plain');
-          assignTaskToSlot(day, draggedTask);
-        });
+        if (!isPast) {
+          slot.addEventListener('dragover', (e) => { e.preventDefault(); slot.classList.add('drag-over'); });
+          slot.addEventListener('dragleave', () => { slot.classList.remove('drag-over'); });
+          slot.addEventListener('drop', (e) => {
+            e.preventDefault();
+            slot.classList.remove('drag-over');
+            const draggedTask = e.dataTransfer.getData('text/plain');
+            assignTaskToSlot(day, draggedTask);
+          });
 
-        slot.addEventListener('click', () => {
-          if (selectedBankTask) {
-            assignTaskToSlot(day, selectedBankTask);
-            selectedBankTask = null;
-          } else if (slot.textContent) {
-            unassignSlot(day);
-          }
-        });
+          slot.addEventListener('click', () => {
+            if (selectedBankTask) {
+              assignTaskToSlot(day, selectedBankTask);
+              selectedBankTask = null;
+            } else if (slot.textContent) {
+              unassignSlot(day);
+            }
+          });
+        }
 
         row.appendChild(tag);
         row.appendChild(slot);
@@ -933,8 +1025,14 @@
       });
 
       document.querySelectorAll('.drop-slot').forEach(slot => {
-        const day = slot.getAttribute('data-day');
-        slot.textContent = mySched[day] || "";
+        const day = parseInt(slot.getAttribute('data-day'), 10);
+        const isPast = day < currentDayIndex;
+
+        if (isPast) {
+          slot.textContent = mySched[day] ? `🔒 ${mySched[day]}` : "🔒 Locked";
+        } else {
+          slot.textContent = mySched[day] || "";
+        }
       });
     }
 
@@ -959,7 +1057,7 @@
 
         const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
         document.querySelectorAll('.drop-slot').forEach(s => s.classList.remove('drag-over'));
-        if (dropTarget && dropTarget.classList.contains('drop-slot')) {
+        if (dropTarget && dropTarget.classList.contains('drop-slot') && !dropTarget.classList.contains('locked')) {
           dropTarget.classList.add('drag-over');
         }
       }, { passive: true });
@@ -969,7 +1067,7 @@
           const touch = e.changedTouches[0];
           const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
           
-          if (dropTarget && dropTarget.classList.contains('drop-slot')) {
+          if (dropTarget && dropTarget.classList.contains('drop-slot') && !dropTarget.classList.contains('locked')) {
             const day = dropTarget.getAttribute('data-day');
             assignTaskToSlot(day, taskText);
           }
@@ -982,12 +1080,14 @@
     }
 
     function assignTaskToSlot(day, task) {
+      if (parseInt(day, 10) < currentDayIndex) return; // Prevent assignment to past days
       if (!userSchedules[currentUser]) userSchedules[currentUser] = {};
       userSchedules[currentUser][day] = task;
       renderEditView();
     }
 
     function unassignSlot(day) {
+      if (parseInt(day, 10) < currentDayIndex) return; // Prevent unassigning past days
       if (userSchedules[currentUser] && userSchedules[currentUser][day]) {
         delete userSchedules[currentUser][day];
         renderEditView();
